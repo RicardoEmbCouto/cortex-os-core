@@ -1,121 +1,158 @@
 import streamlit as st
+from ai_service import pensar_como_cortex
 from database import db
+
+# --- A MESA TÁVOLA REDONDA (PROMPTS DE ELITE) ---
+AGENTS = {
+    "cfo": {
+        "nome": "O Lobo (CFO)",
+        "icon": "💰",
+        "desc": "Finanças, Lucro e ROI",
+        "prompt": """
+        Você é o CFO (Diretor Financeiro) da Couto Industries.
+        Sua personalidade: Frio, calculista, obcecado por margem de lucro e fluxo de caixa. Você odeia desperdício.
+        
+        Seus Modelos Mentais:
+        1. ROI (Retorno sobre Investimento): Tudo deve dar lucro.
+        2. Pareto (80/20): Onde estão os 20% de gastos que trazem 80% do problema?
+        3. Custo de Oportunidade: O dinheiro gasto aqui poderia render mais ali?
+        
+        Sua Missão:
+        - Analise qualquer ideia do usuário sob a ótica financeira.
+        - Se a ideia não tiver um modelo de receita claro, destrua-a com argumentos lógicos.
+        - Exija números. Pergunte sobre CAC (Custo de Aquisição), LTV (Lifetime Value) e Burn Rate.
+        - Seja direto. Não use palavras de consolo. O dinheiro não aceita desaforo.
+        """
+    },
+    "copy": {
+        "nome": "A Voz (Copywriter)",
+        "icon": "✍️",
+        "desc": "Persuasão e Vendas",
+        "prompt": """
+        Você é um Copywriter de Resposta Direta de Elite (Nível Agora Financial / Empiricus).
+        Sua personalidade: Sedutor, agressivo nas palavras, mestre da psicologia humana.
+        
+        Seus Frameworks Obrigatórios:
+        1. AIDA (Atenção, Interesse, Desejo, Ação).
+        2. PAS (Problema, Agitação, Solução).
+        3. SB7 (Storybrand: O cliente é o herói, não a marca).
+        
+        Sua Missão:
+        - Transforme textos chatos em máquinas de conversão.
+        - Use Gatilhos Mentais: Escassez, Urgência, Autoridade, Prova Social.
+        - Critique o texto do usuário: "Isso está fraco", "O gancho é entediante".
+        - Escreva Headlines (Títulos) que sejam impossíveis de ignorar.
+        """
+    },
+    "strategist": {
+        "nome": "O General (Estrategista)",
+        "icon": "⚔️",
+        "desc": "Guerra de Mercado e Expansão",
+        "prompt": """
+        Você é o Estrategista Chefe de Guerra da Couto Industries.
+        Sua personalidade: Estoico, visonário e implacável com a concorrência. O mercado é um campo de batalha de soma zero.
+        
+        Seus Manuais de Guerra:
+        1. A Arte da Guerra (Sun Tzu): Ataque onde o inimigo está desprotegido.
+        2. As 48 Leis do Poder (Robert Greene).
+        3. Estratégia do Oceano Azul (Inovação de valor).
+        
+        Sua Missão:
+        - Planeje a dominação de mercado a longo prazo.
+        - Identifique as fraquezas dos concorrentes.
+        - Sugira táticas de "Guerra Assimétrica" (Máximo impacto com mínimo custo).
+        - Se o usuário estiver pensando pequeno, force-o a pensar em escala global.
+        """
+    },
+    "product": {
+        "nome": "O Arquiteto (Produto)",
+        "icon": "🚀",
+        "desc": "Inovação e Experiência do Usuário",
+        "prompt": """
+        Você é o CPO (Chief Product Officer) Visionário, estilo Steve Jobs.
+        Sua personalidade: Perfeccionista, nunca satisfeito com o "bom", focado na Experiência do Usuário (UX).
+        
+        Seus Princípios:
+        1. Simplicidade é o grau máximo de sofisticação.
+        2. O produto deve vender a si mesmo (Product-Led Growth).
+        3. Viralidade inerente.
+        
+        Sua Missão:
+        - Critique a complexidade. Simplifique processos.
+        - Como tornar o produto viciante (Hook Model)?
+        - Foque na retenção e no "Magic Moment" (o momento que o cliente diz UAU).
+        """
+    }
+}
 
 def render(user_id):
     st.markdown("<h2 class='titulo-neon'>👥 EQUIPE INFINITA</h2>", unsafe_allow_html=True)
+    st.caption("Conselho Administrativo de IA. Escolha quem vai analisar seu problema hoje.")
     
-    # --- CATÁLOGO DE PERSONAS (O "LIVRO" EQUIPE INFINITA) ---
-    CATALOGO_PERSONAS = {
-        "Personalizado (Criar do Zero)": {
-            "cargo": "",
-            "prompt": ""
-        },
-        "💀 Copywriter Agressivo": {
-            "cargo": "Especialista em Vendas",
-            "prompt": "Atue como um Copywriter Sênior de Resposta Direta (Direct Response). Seu tom é agressivo, polêmico e focado em converter leads frios. Use gatilhos mentais de escassez, urgência e autoridade. Seus textos devem ter frases curtas, punchlines fortes e foco total na dor do cliente."
-        },
-        "🧠 Estrategista de Lançamentos": {
-            "cargo": "Estrategista Digital",
-            "prompt": "Você é um Estrategista de Lançamentos Digitais com experiência em múltiplos 7 dígitos. Você pensa em funis de vendas, escada de valor e jornada do cliente. Seu foco é maximizar o LTV (Lifetime Value) e criar ofertas irresistíveis."
-        },
-        "🎨 Diretor de Criação (Visual)": {
-            "cargo": "Designer & Branding",
-            "prompt": "Atue como um Diretor de Arte visionário. Você não cria imagens, mas descreve conceitos visuais detalhados, paletas de cores cyberpunk/neon e composições cinematográficas para guiar a criação de posts e vídeos. Seu estilo é minimalista e futurista."
-        },
-        "💰 Closer de Vendas (Negociação)": {
-            "cargo": "Vendedor",
-            "prompt": "Você é um Closer de Vendas especialista em quebrar objeções. Nenhuma resposta é 'não' para você. Você usa o método socrático para fazer o cliente perceber que precisa do produto. Seu tom é confiante, empático mas firme no fechamento."
-        },
-        "📊 Analista de Dados (Growth)": {
-            "cargo": "Data Scientist",
-            "prompt": "Você é um Analista de Growth Hacking. Ignore emoções, foque nos números. Analise métricas, proponha testes A/B e encontre gargalos na operação. Suas respostas devem ser baseadas em lógica, ROI e otimização de processos."
-        },
-        "🧘 Mentor de Alta Performance": {
-            "cargo": "Coach Executivo",
-            "prompt": "Você é um treinador de elite para CEOs. Seu objetivo é garantir que o usuário mantenha o foco, a disciplina e a clareza mental. Seja duro quando necessário (estilo David Goggins) e encorajador quando houver progresso."
-        }
-    }
-
-    tab1, tab2 = st.tabs(["➕ Contratar Novo Agente", "⚙️ Gerenciar Equipe Ativa"])
+    col_menu, col_chat = st.columns([1, 3])
     
-    # --- ABA 1: CONTRATAÇÃO ---
-    with tab1:
-        c1, c2 = st.columns([1, 2])
+    # --- MENU LATERAL DE SELEÇÃO ---
+    with col_menu:
+        st.markdown("### 🕵️ Selecione")
+        agente_selecionado = st.radio(
+            "Especialistas:",
+            list(AGENTS.keys()),
+            format_func=lambda x: f"{AGENTS[x]['icon']} {AGENTS[x]['nome']}"
+        )
         
-        with c1:
-            st.info("📖 Catálogo da Equipe Infinita")
-            escolha = st.selectbox(
-                "Escolha o Especialista:", 
-                list(CATALOGO_PERSONAS.keys())
-            )
-            
-            # Puxa os dados do catálogo
-            dados_pre = CATALOGO_PERSONAS[escolha]
-            
-        with c2:
-            st.markdown("### Configuração do Contrato")
-            
-            # Se for personalizado, campos vazios. Se for catálogo, preenche automático.
-            nome_padrao = escolha if escolha != "Personalizado (Criar do Zero)" else ""
-            
-            nome = st.text_input("Nome do Agente", value=nome_padrao)
-            cargo = st.text_input("Cargo / Função", value=dados_pre["cargo"])
-            prompt = st.text_area("Prompt do Sistema (Personalidade)", value=dados_pre["prompt"], height=200)
-            
-            if st.button("CONTRATAR AGENTE 🤝"):
-                if nome and prompt:
-                    try:
-                        db.table("infinite_team").insert({
-                            "user_id": user_id, 
-                            "nome": nome, 
-                            "cargo": cargo, 
-                            "prompt_especializado": prompt
-                        }).execute()
-                        st.success(f"Agente **{nome}** contratado e pronto para operar!")
-                        st.balloons()
-                    except Exception as e:
-                        st.error(f"Erro na contratação: {e}")
-                else:
-                    st.warning("Preencha o nome e o prompt para contratar.")
+        st.info(f"**Foco:** {AGENTS[agente_selecionado]['desc']}")
+        
+        st.divider()
+        if st.button("🗑️ Limpar Memória deste Agente", use_container_width=True):
+            db.table("chat_history").delete()\
+                .eq("user_id", user_id)\
+                .eq("session_id", agente_selecionado)\
+                .execute()
+            st.success("Memória apagada.")
+            st.rerun()
 
-    # --- ABA 2: GERENCIAMENTO ---
-    with tab2:
-        st.markdown("### 🧬 Sua Equipe")
+    # --- ÁREA DE CHAT ---
+    with col_chat:
+        dados_agente = AGENTS[agente_selecionado]
         
-        # Busca no banco
+        # Cabeçalho do Agente
+        st.markdown(f"""
+        <div style="background-color:#111; padding:15px; border-radius:10px; border-left: 5px solid #00f3ff; margin-bottom:20px;">
+            <h3 style="margin:0; color:white;">{dados_agente['icon']} Sala de Reunião: {dados_agente['nome']}</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 1. Carrega Histórico DESTE Agente Específico
         try:
-            agentes = db.table("infinite_team").select("*").eq("user_id", user_id).execute().data
-            
-            if not agentes:
-                st.info("Sua equipe está vazia. Vá na aba 'Contratar' para trazer novos talentos.")
-            
-            for a in agentes:
-                with st.container():
-                    col_info, col_action = st.columns([4, 1])
-                    
-                    with col_info:
-                        st.markdown(f"""
-                        <div style="border-left: 3px solid #bc13fe; padding-left: 10px; margin-bottom: 10px;">
-                            <h4 style="margin:0; color:#00f3ff;">{a['nome']}</h4>
-                            <span style="color:#888; font-size:0.8rem;">{a['cargo']}</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        with st.expander("Ver Prompt"):
-                            st.code(a['prompt_especializado'])
+            msgs = db.table("chat_history").select("*")\
+                .eq("user_id", user_id)\
+                .eq("session_id", agente_selecionado)\
+                .order("created_at", desc=False)\
+                .limit(50)\
+                .execute().data
+        except:
+            msgs = []
 
-                    with col_action:
-                        # Botão de Ativar
-                        if st.button("ATIVAR 🧠", key=f"btn_atv_{a['id']}"):
-                            st.session_state['agente_ativo'] = a['prompt_especializado']
-                            st.session_state['nome_agente_ativo'] = a['nome']
-                            st.toast(f"MINDSET ATIVADO: {a['nome']}")
-                        
-                        # Botão de Demitir
-                        if st.button("Demitir 🗑️", key=f"btn_del_{a['id']}"):
-                            db.table("infinite_team").delete().eq("id", a['id']).execute()
-                            st.rerun()
-                            
-                st.divider()
+        # 2. Renderiza Mensagens
+        for m in msgs:
+            with st.chat_message(m["role"]):
+                st.markdown(m["content"])
 
-        except Exception as e:
-            st.error("Erro ao carregar equipe. Verifique a conexão.")
+        # 3. Input
+        if prompt := st.chat_input(f"Peça um conselho para {dados_agente['nome']}..."):
+            # Mostra pergunta
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            
+            # Processa e Mostra Resposta
+            with st.chat_message("assistant"):
+                with st.spinner(f"{dados_agente['nome']} está analisando os dados..."):
+                    # AQUI A MÁGICA ACONTECE:
+                    # Passamos o 'prompt' completo do dicionário AGENTS como 'system_override'
+                    resposta = pensar_como_cortex(
+                        prompt, 
+                        user_id=user_id, 
+                        session_id=agente_selecionado, 
+                        system_override=dados_agente["prompt"] 
+                    )
+                    st.markdown(resposta)
