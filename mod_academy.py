@@ -1,7 +1,21 @@
 import streamlit as st
 from database import db
 
+# --- CONFIGURAÇÃO DE SEGURANÇA MÁXIMA ---
 def is_admin(user_id):
+    # 1. TRAVA BIOMÉTRICA (Hardcoded Email Check)
+    # Coloque aqui o(s) email(s) que têm permissão de DEUS no sistema.
+    EMAILS_DO_BOSS = [
+        "ricardinho.coutofilho@outlook.com",  # SUBSTITUA PELO SEU EMAIL DE LOGIN EXATO
+         
+    ]
+    
+    email_atual = st.session_state.get("user_email", "")
+    
+    if email_atual in EMAILS_DO_BOSS:
+        return True
+
+    # 2. Fallback: Checagem no Banco (caso você queira delegar a gerentes no futuro)
     try:
         res = db.table("profiles").select("role").eq("id", user_id).single().execute()
         return res.data and res.data.get("role") == "admin"
@@ -15,119 +29,103 @@ def render(user_id):
     
     # Carrega produtos do banco
     try:
-        produtos = db.table("academy_products").select("*").execute().data
+        produtos = db.table("academy_products").select("*").order("created_at", desc=True).execute().data
     except Exception as e:
-        st.error(f"Erro ao carregar produtos: {str(e)}")
+        # Se a tabela não existir, não quebra a tela
         produtos = []
 
-    # MODO ADMIN: Gerenciar produtos
+    # --- ÁREA RESTRITA AO COMANDANTE ---
     if admin_mode:
-        st.markdown("### 🔧 Modo Admin – Gerenciar Produtos & Ebooks")
-        
-        # Formulário para adicionar novo produto
-        with st.expander("➕ Adicionar Novo Produto / Ebook"):
+        with st.expander("🔐 ÁREA RESTRITA: GERENCIAMENTO DE ARSENAL", expanded=False):
+            st.markdown("### 🔧 Adicionar Novo Info-Produto")
+            
             with st.form("novo_produto"):
-                titulo = st.text_input("Título (ex: Protocolo Equipe Infinita)")
-                desc = st.text_area("Descrição curta")
+                titulo = st.text_input("Título do Produto")
+                desc = st.text_area("Descrição Curta (Gatilho de Venda)")
+                img_url = st.text_input("URL da Imagem (Capa 3D)")
+                link_checkout = st.text_input("Link do Checkout (Pagamento)")
+                link_aula = st.text_input("Link da Área de Membros (Entrega)")
                 
-                st.markdown("**URL da Capa (cole o link que abre no navegador)**")
-                img_url = st.text_input("Link da Imagem (ex: https://i.imgur.com/...)")
-                
-                link_checkout = st.text_input("Link Hotmart Checkout")
-                link_aula = st.text_input("Link Área de Membros Hotmart (acesso ao ebook/material)")
-                
-                submit = st.form_submit_button("Salvar Produto")
+                c1, c2 = st.columns(2)
+                with c1:
+                    submit = st.form_submit_button("💾 SALVAR NO ARSENAL")
                 
                 if submit:
-                    if titulo and link_checkout and img_url:
-                        db.table("academy_products").insert({
-                            "titulo": titulo,
-                            "descricao": desc,
-                            "img_url": img_url,
-                            "link_checkout": link_checkout,
-                            "link_aula": link_aula
-                        }).execute()
-                        st.success("Produto adicionado com sucesso!")
-                        st.rerun()
+                    if titulo and link_checkout:
+                        try:
+                            db.table("academy_products").insert({
+                                "titulo": titulo,
+                                "descricao": desc,
+                                "img_url": img_url,
+                                "link_checkout": link_checkout,
+                                "link_aula": link_aula
+                            }).execute()
+                            st.success("✅ Produto adicionado ao catálogo global.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar: {e}")
                     else:
-                        st.error("Título, URL da Capa e Link Checkout são obrigatórios")
-        
-        # Lista para edição/exclusão
-        st.markdown("### Produtos Existentes")
-        for p in produtos:
-            with st.expander(f"{p['titulo']} (ID: {p['id']})"):
-                novo_titulo = st.text_input("Título", value=p['titulo'], key=f"tit_{p['id']}")
-                novo_desc = st.text_area("Descrição", value=p['descricao'], key=f"desc_{p['id']}")
-                
-                st.markdown("**URL da Capa Atual**")
-                novo_img = st.text_input("Atualizar URL Capa", value=p.get('img_url', ''), key=f"img_{p['id']}")
-                
-                novo_checkout = st.text_input("Checkout", value=p['link_checkout'], key=f"chk_{p['id']}")
-                novo_aula = st.text_input("Área Membros", value=p['link_aula'], key=f"aula_{p['id']}")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Atualizar", key=f"upd_{p['id']}"):
-                        db.table("academy_products").update({
-                            "titulo": novo_titulo,
-                            "descricao": novo_desc,
-                            "img_url": novo_img,
-                            "link_checkout": novo_checkout,
-                            "link_aula": novo_aula
-                        }).eq("id", p['id']).execute()
-                        st.success("Atualizado!")
-                        st.rerun()
-                with col2:
-                    if st.button("Excluir", key=f"del_{p['id']}"):
+                        st.warning("Título e Checkout são obrigatórios.")
+            
+            st.divider()
+            st.markdown("### 🗑️ Gerenciar Existentes")
+            for p in produtos:
+                c_del1, c_del2 = st.columns([4, 1])
+                with c_del1:
+                    st.write(f"**{p['titulo']}**")
+                with c_del2:
+                    if st.button("EXCLUIR", key=f"del_{p['id']}"):
                         db.table("academy_products").delete().eq("id", p['id']).execute()
-                        st.success("Excluído!")
                         st.rerun()
-        
-        st.divider()
 
-    # VISUALIZAÇÃO PARA TODOS (CLIENTES)
-    st.markdown("### Produtos & Ebooks Disponíveis")
+    # --- VITRINE PÚBLICA (O QUE OS SOLDADOS VÊEM) ---
+    st.divider()
+    st.markdown("### 📚 Biblioteca de Expansão de Consciência")
     
-    # CSS cards dark executive
+    # CSS cards dark executive (Visual de Elite)
     st.markdown("""
     <style>
     .container-cards {display:flex;flex-wrap:wrap;gap:20px;justify-content:center;padding:20px;}
-    .card-3d {width:250px;height:444px;background:#0d0d0d;border-radius:15px;position:relative;overflow:hidden;transition:transform .4s ease,box-shadow .4s ease;border:1px solid #333;cursor:pointer;text-decoration:none!important;}
-    .card-3d:hover {transform:translateY(-10px) scale(1.02) rotateX(2deg);box-shadow:0 15px 30px rgba(0,243,255,.3);border-color:#00f3ff;}
-    .card-bg {width:100%;height:100%;object-fit:cover;opacity:.6;transition:opacity .4s;}
-    .card-3d:hover .card-bg {opacity:.3;}
-    .card-content {position:absolute;bottom:0;left:0;width:100%;padding:20px;background:linear-gradient(to top,#000000 10%,transparent);color:white;}
-    .card-title {font-family:'Courier New',monospace;color:#00f3ff;font-weight:bold;font-size:1.2rem;margin-bottom:5px;text-shadow:0 0 5px #00f3ff;}
-    .card-status {font-size:.8rem;font-weight:bold;text-transform:uppercase;padding:5px 10px;border-radius:4px;display:inline-block;margin-bottom:10px;}
-    .status-locked {background:#ff0055;color:white;border:1px solid #ff0055;}
-    .status-unlocked {background:#00ff88;color:black;border:1px solid #00ff88;box-shadow:0 0 10px #00ff88;}
+    .card-3d {width:250px;height:400px;background:#0d0d0d;border-radius:12px;position:relative;overflow:hidden;transition:all .3s ease;border:1px solid #333;text-decoration:none!important;}
+    .card-3d:hover {transform:translateY(-5px);border-color:#00f3ff;box-shadow:0 0 20px rgba(0,243,255,0.2);}
+    .card-bg {width:100%;height:200px;object-fit:cover;opacity:0.8;}
+    .card-content {padding:15px;color:white;}
+    .card-title {font-family:'Courier New';color:#00f3ff;font-weight:bold;font-size:1.1rem;margin-bottom:10px;height:50px;overflow:hidden;}
+    .btn-action {display:block;width:100%;padding:10px;text-align:center;border-radius:5px;font-weight:bold;margin-top:10px;text-transform:uppercase;}
+    .btn-buy {background:#00f3ff;color:black;}
+    .btn-access {background:#00ff88;color:black;}
     </style>
     """, unsafe_allow_html=True)
     
     html_cards = '<div class="container-cards">'
     
+    if not produtos:
+        st.info("Nenhum treinamento disponível no momento. O Mestre está forjando novas armas.")
+    
     for p in produtos:
-        possui = db.table("user_products").select("id").eq("user_id", user_id).eq("product_id", p['id']).execute().data
+        # Verifica se o usuário já comprou (precisa da tabela user_products)
+        possui = False
+        try:
+            check = db.table("user_products").select("id").eq("user_id", user_id).eq("product_id", p['id']).execute()
+            if check.data: possui = True
+        except:
+            pass # Se a tabela user_products não existir, assume que não tem
         
         link_destino = p['link_aula'] if possui else p['link_checkout']
-        texto_status = "📖 ACESSAR ÁREA / EBOOK" if possui else "🔒 COMPRAR AGORA"
-        classe_status = "status-unlocked" if possui else "status-locked"
-        
-        img_src = p.get('img_url') or "https://via.placeholder.com/250x444?text=Capa+Produto"
+        texto_botao = "ACESSAR AGORA" if possui else "ADQUIRIR ACESSO"
+        classe_botao = "btn-access" if possui else "btn-buy"
+        img_src = p.get('img_url') or "https://via.placeholder.com/250x200?text=Cortex+Academy"
         
         html_cards += f"""
-        <a href="{link_destino}" target="_blank" class="card-3d">
+        <div class="card-3d">
             <img src="{img_src}" class="card-bg">
             <div class="card-content">
-                <span class="card-status {classe_status}">{texto_status}</span>
                 <div class="card-title">{p['titulo']}</div>
-                <p style="font-size:0.8rem;color:#ccc;">{p['descricao']}</p>
+                <p style="font-size:0.8rem;color:#aaa;height:40px;overflow:hidden;">{p['descricao'][:60]}...</p>
+                <a href="{link_destino}" target="_blank" class="btn-action {classe_botao}">{texto_botao}</a>
             </div>
-        </a>
+        </div>
         """
     
     html_cards += '</div>'
     st.markdown(html_cards, unsafe_allow_html=True)
-    
-    if not produtos:
-        st.info("Nenhum produto disponível no momento. (Admin: adicione acima)")
