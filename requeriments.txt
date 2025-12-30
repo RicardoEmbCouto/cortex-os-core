@@ -4,5 +4,8 @@ google-generativeai
 pandas
 yfinance
 altair
-numpy<2.0
+requests
+python-dateutil
+plotly
+watchdog
 
