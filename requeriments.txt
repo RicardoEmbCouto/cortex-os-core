@@ -1,0 +1,8 @@
+streamlit
+supabase
+google-generativeai
+pandas
+yfinance
+altair
+numpy<2.0
+
